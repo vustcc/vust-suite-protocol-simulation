@@ -14,6 +14,8 @@ import {
   VustTooltip,
   VustCheckbox,
   VustActionMenu,
+  VustSelectionBar,
+  VustTabs,
 } from "@/components/ui";
 import type { VustTableColumn } from "@vustcc/vue";
 import {
@@ -61,6 +63,20 @@ const getRuleName = (rule?: SimRule | null) => {
  * 'rules' - 规则整编面板
  */
 const activeTab = ref<"deployments" | "rules">("deployments");
+
+/** 标准标签页使用字符串契约，对写入值做运行时收窄。 */
+const activeTabModel = computed({
+  get: () => activeTab.value,
+  set: (value: string) => {
+    if (value === "deployments" || value === "rules") activeTab.value = value;
+  },
+});
+
+/** 顶部主导航由组件库统一提供材质、焦点与键盘行为。 */
+const simulationTabs = computed(() => [
+  { name: "deployments", label: t("app.simulation.tabs.deployments") },
+  { name: "rules", label: t("app.simulation.tabs.rules") },
+]);
 
 /** 非列表业务操作的全局加载状态。 */
 const isLoading = ref(false);
@@ -2006,21 +2022,11 @@ const handleDownloadPcap = async (row: SimInstance) => {
   >
     <!-- 头部横幅与 Tab 选项卡 -->
     <div class="dashboard-header" data-slot="header">
-      <!-- Tab 切换 -->
-      <div class="tab-box" data-ui="tab-box">
-        <button
-          v-for="(label, key) in {
-            deployments: t('app.simulation.tabs.deployments'),
-            rules: t('app.simulation.tabs.rules'),
-          }"
-          :key="key"
-          class="tab-btn"
-          :class="{ active: activeTab === key }"
-          @click="activeTab = key"
-        >
-          {{ label }}
-        </button>
-      </div>
+      <VustTabs
+        v-model="activeTabModel"
+        :tabs="simulationTabs"
+        data-ui="simulation-tabs"
+      />
     </div>
 
     <!-- 主交互面板 -->
@@ -2030,30 +2036,24 @@ const handleDownloadPcap = async (row: SimInstance) => {
         v-if="activeTab === 'deployments'"
         class="tab-content flex-column gap-layout"
       >
-        <div
+        <VustSelectionBar
           v-if="selectedInstanceIds.length > 0"
-          class="control-header card-bg flex-row justify-between align-center"
+          :count="selectedInstanceIds.length"
+          :label="t('app.simulation.deployments.btnBatchUndeploy')"
+          :aria-label="t('app.simulation.deployments.btnBatchUndeploy')"
         >
-          <div></div>
-          <div class="actions-group">
-            <VustButton
-              v-if="selectedInstanceIds.length > 0"
-              type="danger"
-              data-ui="sim-batch-undeploy-btn"
-              :loading="isBatchUndeploying"
-              :disabled="
-                isBatchUndeploying || undeployingInstanceIds.length > 0
-              "
-              @click="handleBatchUndeploy"
-            >
-              {{ t("app.simulation.deployments.btnBatchUndeploy") }} ({{
-                selectedInstanceIds.length
-              }})
-            </VustButton>
-          </div>
-        </div>
+          <VustButton
+            type="danger"
+            data-ui="sim-batch-undeploy-btn"
+            :loading="isBatchUndeploying"
+            :disabled="isBatchUndeploying || undeployingInstanceIds.length > 0"
+            @click="handleBatchUndeploy"
+          >
+            {{ t("app.simulation.deployments.btnBatchUndeploy") }}
+          </VustButton>
+        </VustSelectionBar>
 
-        <div class="main-panel card-bg flex-column flex-1" data-slot="content">
+        <div class="main-panel flex-column flex-1" data-slot="content">
           <div class="table-body-region flex-1 overflow-auto">
             <VustTable
               :data="instances"
@@ -2228,9 +2228,7 @@ const handleDownloadPcap = async (row: SimInstance) => {
         class="tab-content flex-column gap-layout"
       >
         <!-- 筛选检索工具栏 -->
-        <div
-          class="control-header card-bg flex-layout gap-layout flex-align-center"
-        >
+        <div class="control-header flex-layout gap-layout flex-align-center">
           <div class="filter-item">
             <span class="label">{{
               t("app.simulation.rules.filters.name")
@@ -2298,7 +2296,7 @@ const handleDownloadPcap = async (row: SimInstance) => {
           </div>
         </div>
 
-        <div class="main-panel card-bg flex-column flex-1" data-slot="content">
+        <div class="main-panel flex-column flex-1" data-slot="content">
           <div
             ref="rulesTableRegionRef"
             class="table-body-region flex-1 overflow-auto"
@@ -3158,39 +3156,12 @@ const handleDownloadPcap = async (row: SimInstance) => {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  padding-bottom: var(--vdl-space-3);
+  min-height: 42px;
 }
 
-/* Tabs */
-.tab-box {
-  display: flex;
-  background: var(--vdl-bg-panel);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: var(--vdl-radius-md);
-  padding: 2px;
-}
-
-.tab-btn {
-  border: none;
-  background: transparent;
-  color: var(--vdl-text-muted);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-radius: var(--vdl-radius-sm);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.tab-btn:hover {
-  color: var(--vdl-text-primary);
-  background: rgba(148, 163, 184, 0.05);
-}
-
-.tab-btn.active {
-  color: var(--vdl-primary);
-  background: var(--vdl-bg-card);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+/* 主导航直接消费组件库材质，避免自绘实色选中块。 */
+:deep([data-ui="simulation-tabs"] .vl-tabs-nav) {
+  border-bottom: 0;
 }
 
 /* Body */
@@ -3262,14 +3233,6 @@ const handleDownloadPcap = async (row: SimInstance) => {
 .overflow-auto {
   overflow: auto;
   min-height: 0;
-}
-
-/* Sidebar & Main */
-.card-bg {
-  background: var(--vdl-bg-panel);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: var(--vdl-radius-lg);
-  box-sizing: border-box;
 }
 
 .main-panel {
@@ -3407,6 +3370,8 @@ const handleDownloadPcap = async (row: SimInstance) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border: 1px solid var(--vdl-border-subtle);
+  border-radius: var(--vdl-radius-lg);
 }
 
 .filter-item {
